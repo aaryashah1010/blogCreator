@@ -1,6 +1,6 @@
 import { getToken, clearToken } from "./authApi";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
+const BASE_URL = import.meta.env.VITE_API_URL || "";
 
 async function parseErrorResponse(res, fallbackMessage) {
   try {

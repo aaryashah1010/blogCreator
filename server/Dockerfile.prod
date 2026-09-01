@@ -1,0 +1,17 @@
+# Build the React client into static files
+FROM node:20-alpine AS client-build
+WORKDIR /client
+COPY client/package*.json ./
+RUN npm install
+COPY client/ ./
+RUN npm run build
+
+# Run the API and serve the built client alongside it
+FROM node:20-alpine
+WORKDIR /app
+COPY server/package*.json ./
+RUN npm install --omit=dev
+COPY server/src ./src
+COPY --from=client-build /client/dist ./public
+EXPOSE 4000
+CMD ["node", "src/server.js"]
