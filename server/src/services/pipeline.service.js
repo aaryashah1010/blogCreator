@@ -151,8 +151,9 @@ export async function generateContent(brief) {
   return draft;
 }
 
-// Stage 3: raw draft -> humanized draft, corrected toward the same target +/-50
-export async function humanizeContent(draft, targetWords) {
+// Stage 3: raw draft -> humanized draft, corrected toward the same target +/-50.
+// Also generates 2-3 alternate subtitle suggestions, which is why it needs the keyword list.
+export async function humanizeContent(draft, targetWords, keywords) {
   const target = Number(targetWords) || DEFAULT_WORD_COUNT_TARGET;
 
   const humanized = await generateWithLengthEnforcement({
@@ -160,7 +161,7 @@ export async function humanizeContent(draft, targetWords) {
     basePrompt: buildHumanizerSystemPrompt(target),
     buildExpandPrompt: buildHumanizerExpandPrompt,
     buildCondensePrompt: buildHumanizerCondensePrompt,
-    baseUserMessage: JSON.stringify(draft),
+    baseUserMessage: JSON.stringify({ ...draft, keywords: keywords || [] }),
     buildCorrectionUserMessage: (currentDraft) => JSON.stringify({ currentDraft })
   });
 
@@ -170,13 +171,15 @@ export async function humanizeContent(draft, targetWords) {
     err.status = 502;
     throw err;
   }
+  if (!Array.isArray(humanized.subtitles)) humanized.subtitles = [];
   return humanized;
 }
 
 // Stage 2 + 3 together
 export async function runFullPipeline(brief) {
   const targetWords = Number(brief.wordCountTarget) || DEFAULT_WORD_COUNT_TARGET;
+  const keywords = [brief.primaryKeyword, ...(brief.secondaryKeywords || [])].filter(Boolean);
   const draft = await generateContent(brief);
-  const humanized = await humanizeContent(draft, targetWords);
+  const humanized = await humanizeContent(draft, targetWords, keywords);
   return { rawDraft: draft, final: humanized };
 }

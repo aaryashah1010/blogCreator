@@ -57,11 +57,14 @@ Hard constraints — do not violate these while rewriting:
 - Do not change the meaning or drop the call-to-action.
 - The source draft should already be ${min}-${max} words (target ${targetWords}). Keep your rewrite in that same range — don't trim it down or pad it out while humanizing, just preserve the length while changing how it's said. Rewrite section by section rather than summarizing any of them.
 
+Also produce 2-3 alternate subtitle/headline suggestions for this post — separate from the title and NOT inserted into the post body. Think of these as H2-level headline variations the content manager could reuse elsewhere (a social caption, a related post, headline A/B testing). Base them on the final title and the keywords ("keywords" field you'll receive). Each must be a complete, natural-sounding headline in its own right (not a sentence fragment), and each should naturally work in a different keyword or angle where possible — don't just reword the same phrase three times.
+
 Output valid JSON in this shape:
 {
   "title": string,
   "metaDescription": string,
-  "content": string
+  "content": string,
+  "subtitles": string[]   // 2-3 alternate H2-style headline suggestions
 }
 `;
 }
@@ -76,11 +79,14 @@ You are a senior editor for industrial B2B blog content. You will be given a JSO
 
 currentDraft is ${currentWords} words. The target is ${targetWords} words (acceptable range ${min}-${max}) — add roughly ${shortBy} more words while keeping its human, natural voice exactly as-is (same tone, same sentence rhythm, same avoidance of generic AI phrasing). Do not shorten or remove anything already there. Add depth the same way a human editor would when told "this needs more meat": elaborate a thin section with a concrete example or comparison, or add a short new section (e.g. a common-mistakes point or a brief FAQ) that fits naturally with the rest. Stop once you're within ${min}-${max} words — don't overshoot past ${max}.
 
+currentDraft also has a "subtitles" field (alternate headline suggestions) — carry it through unchanged in your output unless the title changed meaningfully, in which case adjust them to match.
+
 Output the full expanded post as JSON in this shape:
 {
   "title": string,
   "metaDescription": string,
-  "content": string
+  "content": string,
+  "subtitles": string[]
 }
 `;
 }
@@ -95,11 +101,14 @@ You are a senior editor for industrial B2B blog content. You will be given a JSO
 
 currentDraft is ${currentWords} words. The target is ${targetWords} words (acceptable range ${min}-${max}) — cut roughly ${cutBy} words while keeping its human, natural voice exactly as-is. Tighten sentences and cut redundant explanation rather than deleting whole sections. Keep every keyword close to its exact wording, every heading, and the call-to-action intact. Don't cut so much that you land under ${min} words.
 
+currentDraft also has a "subtitles" field (alternate headline suggestions) — carry it through unchanged in your output.
+
 Output the full trimmed post as JSON in this shape:
 {
   "title": string,
   "metaDescription": string,
-  "content": string
+  "content": string,
+  "subtitles": string[]
 }
 `;
 }

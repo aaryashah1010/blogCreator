@@ -78,7 +78,8 @@ router.post("/generate", validateGenerateRequest, async (req, res, next) => {
       rawDraft: rawDraft.content,
       humanizedDraft: final.content,
       title: final.title,
-      metaDescription: final.metaDescription
+      metaDescription: final.metaDescription,
+      subtitles: final.subtitles
     });
 
     res.json({
@@ -86,6 +87,7 @@ router.post("/generate", validateGenerateRequest, async (req, res, next) => {
       title: draft.title,
       metaDescription: draft.metaDescription,
       content: draft.humanizedDraft,
+      subtitles: draft.subtitles,
       wordCount: countWords(draft.humanizedDraft),
       qualityFlags: buildQualityFlags(draft),
       stages: {
@@ -121,6 +123,7 @@ router.get("/:draftId", async (req, res, next) => {
       title: draft.title,
       metaDescription: draft.metaDescription,
       content: draft.humanizedDraft,
+      subtitles: draft.subtitles,
       wordCount: countWords(draft.humanizedDraft),
       status: draft.status,
       qualityFlags: buildQualityFlags(draft),

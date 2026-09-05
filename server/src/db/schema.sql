@@ -30,10 +30,14 @@ CREATE TABLE IF NOT EXISTS drafts (
   humanized_draft TEXT NOT NULL,
   title TEXT NOT NULL,
   meta_description TEXT NOT NULL,
+  subtitles JSONB NOT NULL DEFAULT '[]'::jsonb,
   status TEXT NOT NULL DEFAULT 'draft',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   published_at TIMESTAMPTZ
 );
+
+-- Safe to re-run: adds the column for databases created before this field existed.
+ALTER TABLE drafts ADD COLUMN IF NOT EXISTS subtitles JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_briefs_user_id ON briefs(user_id);

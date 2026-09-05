@@ -10,18 +10,19 @@ function mapRow(row) {
     humanizedDraft: row.humanized_draft,
     title: row.title,
     metaDescription: row.meta_description,
+    subtitles: row.subtitles || [],
     status: row.status,
     createdAt: row.created_at,
     publishedAt: row.published_at
   };
 }
 
-export async function createDraft({ userId, briefId, brief, rawDraft, humanizedDraft, title, metaDescription }) {
+export async function createDraft({ userId, briefId, brief, rawDraft, humanizedDraft, title, metaDescription, subtitles }) {
   const result = await pool.query(
-    `INSERT INTO drafts (user_id, brief_id, brief, raw_draft, humanized_draft, title, meta_description)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO drafts (user_id, brief_id, brief, raw_draft, humanized_draft, title, meta_description, subtitles)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
-    [userId, briefId, brief, rawDraft, humanizedDraft, title, metaDescription]
+    [userId, briefId, brief, rawDraft, humanizedDraft, title, metaDescription, JSON.stringify(subtitles || [])]
   );
   return mapRow(result.rows[0]);
 }

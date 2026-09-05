@@ -7,6 +7,7 @@ export default function DraftPreview({ draft, onPublish, loading, published }) {
   const [content, setContent] = useState(draft.content);
   const [editingContent, setEditingContent] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedSubtitle, setCopiedSubtitle] = useState(null);
 
   const flags = draft.qualityFlags;
   const hasWarnings = flags && (flags.outsideWordCountTarget || flags.aiTellPhrasesFound?.length > 0);
@@ -26,6 +27,23 @@ export default function DraftPreview({ draft, onPublish, loading, published }) {
     }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handleCopySubtitle(text, index) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+    setCopiedSubtitle(index);
+    setTimeout(() => setCopiedSubtitle(null), 2000);
   }
 
   return (
@@ -80,6 +98,23 @@ export default function DraftPreview({ draft, onPublish, loading, published }) {
       ) : (
         <div className="markdown-preview">
           <ReactMarkdown>{content}</ReactMarkdown>
+        </div>
+      )}
+
+      {draft.subtitles?.length > 0 && (
+        <div className="subtitles-section">
+          <label>Suggested subtitles</label>
+          <p className="hint">Alternate H2-style headline options — for social captions, related posts, or headline testing. Not part of the post body.</p>
+          <ul className="subtitles-list">
+            {draft.subtitles.map((subtitle, i) => (
+              <li key={i}>
+                <span className="subtitle-text">{subtitle}</span>
+                <button type="button" className="link-button" onClick={() => handleCopySubtitle(subtitle, i)}>
+                  {copiedSubtitle === i ? "Copied!" : "Copy"}
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
