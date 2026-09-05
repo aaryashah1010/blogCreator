@@ -18,6 +18,19 @@ function countWords(text) {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+const WORD_COUNT_TOLERANCE = 50;
+
+function buildQualityFlags(draft) {
+  const wordCount = countWords(draft.humanizedDraft);
+  const targetWordCount = draft.brief?.wordCountTarget || null;
+  return {
+    targetWordCount,
+    actualWordCount: wordCount,
+    outsideWordCountTarget: targetWordCount != null && Math.abs(wordCount - targetWordCount) > WORD_COUNT_TOLERANCE,
+    aiTellPhrasesFound: detectAiTellPhrases(draft.humanizedDraft)
+  };
+}
+
 function toSummary(draft) {
   return {
     draftId: draft.draftId,
@@ -43,8 +56,8 @@ router.get("/", async (req, res, next) => {
 // Stage 1 only — lets the frontend show the brief for review before generating
 router.post("/brief", validateBriefRequest, async (req, res, next) => {
   try {
-    const { blogTitle, companyName, productName, websiteUrl, keywords, rawDescription } = req.body;
-    const brief = await normalizeInput({ blogTitle, companyName, productName, websiteUrl, keywords, rawDescription });
+    const { blogTitle, companyName, productName, websiteUrl, keywords, rawDescription, wordCountTarget } = req.body;
+    const brief = await normalizeInput({ blogTitle, companyName, productName, websiteUrl, keywords, rawDescription, wordCountTarget });
     const briefId = await createBrief({ userId: req.user.id, brief });
     res.json({ briefId, brief });
   } catch (err) {
@@ -74,10 +87,7 @@ router.post("/generate", validateGenerateRequest, async (req, res, next) => {
       metaDescription: draft.metaDescription,
       content: draft.humanizedDraft,
       wordCount: countWords(draft.humanizedDraft),
-      qualityFlags: {
-        underWordCountFloor: countWords(draft.humanizedDraft) < 800,
-        aiTellPhrasesFound: detectAiTellPhrases(draft.humanizedDraft)
-      },
+      qualityFlags: buildQualityFlags(draft),
       stages: {
         rawDraft: draft.rawDraft,
         humanizedDraft: draft.humanizedDraft
@@ -113,10 +123,7 @@ router.get("/:draftId", async (req, res, next) => {
       content: draft.humanizedDraft,
       wordCount: countWords(draft.humanizedDraft),
       status: draft.status,
-      qualityFlags: {
-        underWordCountFloor: countWords(draft.humanizedDraft) < 800,
-        aiTellPhrasesFound: detectAiTellPhrases(draft.humanizedDraft)
-      },
+      qualityFlags: buildQualityFlags(draft),
       stages: {
         rawDraft: draft.rawDraft,
         humanizedDraft: draft.humanizedDraft

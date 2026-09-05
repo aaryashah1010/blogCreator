@@ -23,7 +23,7 @@ Rules for the brief itself:
 - "blogTitle": if the manager supplied a title, keep it as-is (or fix only obvious typos) — do not rewrite their intent. If none was supplied, craft one that naturally contains the primary keyword.
 - "mustInclude" should list the concrete points a genuinely useful buying/selection-guide post on this topic needs to cover (practical selection criteria, how to evaluate options, common mistakes, etc.) — not generic filler like "introduction" or "conclusion".
 - "callToAction" should describe, in one sentence, how the post should invite the reader to take the next step with this specific company (e.g. "Invite readers to contact [Company] via [website] for a quote or technical consultation on [product]").
-- "wordCountTarget" must be a number between 800 and 1000 (default to 900 unless the manager specifies otherwise). This is a hard business requirement — never go below 800.
+- "wordCountTarget" — the manager specifies this directly elsewhere in the workflow; if it's missing from the input for any reason, default to 900.
 - "tone" should suit a B2B industrial buyer: confident, technically credible, and trustworthy — not salesy or hype-driven.
 
 Output valid JSON only, in this exact shape:

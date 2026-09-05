@@ -14,6 +14,7 @@ export default function ContentRequestForm({ onSubmit, loading }) {
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [keywordsText, setKeywordsText] = useState("");
   const [rawDescription, setRawDescription] = useState("");
+  const [wordCountTarget, setWordCountTarget] = useState(900);
   const [validationError, setValidationError] = useState(null);
 
   function handleSubmit(e) {
@@ -33,7 +34,8 @@ export default function ContentRequestForm({ onSubmit, loading }) {
       productName: productName.trim(),
       websiteUrl: websiteUrl.trim(),
       keywords,
-      rawDescription: rawDescription.trim()
+      rawDescription: rawDescription.trim(),
+      wordCountTarget: Math.max(200, Number(wordCountTarget) || 900)
     });
   }
 
@@ -102,6 +104,18 @@ export default function ContentRequestForm({ onSubmit, loading }) {
           rows={3}
         />
       </label>
+
+      <label>
+        Target word count
+        <input
+          type="number"
+          min={200}
+          step={50}
+          value={wordCountTarget}
+          onChange={(e) => setWordCountTarget(e.target.value)}
+        />
+      </label>
+      <p className="hint">The post will be kept within ±50 words of this.</p>
 
       <button type="submit" disabled={loading}>
         {loading ? "Understanding your brief..." : "Create brief"}

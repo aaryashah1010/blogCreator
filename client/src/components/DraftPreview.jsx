@@ -9,7 +9,7 @@ export default function DraftPreview({ draft, onPublish, loading, published }) {
   const [copied, setCopied] = useState(false);
 
   const flags = draft.qualityFlags;
-  const hasWarnings = flags && (flags.underWordCountFloor || flags.aiTellPhrasesFound?.length > 0);
+  const hasWarnings = flags && (flags.outsideWordCountTarget || flags.aiTellPhrasesFound?.length > 0);
 
   async function handleCopy() {
     try {
@@ -35,7 +35,13 @@ export default function DraftPreview({ draft, onPublish, loading, published }) {
 
       {hasWarnings && (
         <div className="error-banner">
-          {flags.underWordCountFloor && <div>This draft came in under 800 words — consider expanding it before publishing.</div>}
+          {flags.outsideWordCountTarget && (
+            <div>
+              Target was {flags.targetWordCount} words — this came in at {flags.actualWordCount} (
+              {flags.actualWordCount > flags.targetWordCount ? "+" : "-"}
+              {Math.abs(flags.actualWordCount - flags.targetWordCount)}). Consider adjusting before publishing.
+            </div>
+          )}
           {flags.aiTellPhrasesFound?.length > 0 && (
             <div>Possible leftover AI-sounding phrases to check: {flags.aiTellPhrasesFound.join(", ")}</div>
           )}

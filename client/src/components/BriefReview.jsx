@@ -41,7 +41,7 @@ export default function BriefReview({ brief, onConfirm, loading }) {
       targetLocations: fromList(targetLocations),
       mustInclude: fromList(mustInclude),
       callToAction,
-      wordCountTarget: Math.min(1000, Math.max(800, Number(wordCountTarget) || 900)),
+      wordCountTarget: Math.max(200, Number(wordCountTarget) || 900),
       assumptions: brief.assumptions || []
     });
   }
@@ -112,12 +112,11 @@ export default function BriefReview({ brief, onConfirm, loading }) {
       </label>
 
       <label>
-        Target word count (800-1000)
+        Target word count (kept within ±50)
         <input
           type="number"
-          min={800}
-          max={1000}
-          step={25}
+          min={200}
+          step={50}
           value={wordCountTarget}
           onChange={(e) => setWordCountTarget(e.target.value)}
         />

@@ -1,10 +1,20 @@
 import { callLLM } from "./openai.service.js";
 import { NORMALIZER_SYSTEM_PROMPT, NORMALIZER_STRICT_SUFFIX } from "./prompts/normalizer.prompt.js";
-import { GENERATOR_SYSTEM_PROMPT, GENERATOR_EXPAND_EXISTING_PROMPT } from "./prompts/generator.prompt.js";
-import { HUMANIZER_SYSTEM_PROMPT, HUMANIZER_EXPAND_EXISTING_PROMPT, AI_TELL_PHRASES } from "./prompts/humanizer.prompt.js";
+import {
+  buildGeneratorSystemPrompt,
+  buildGeneratorExpandPrompt,
+  buildGeneratorCondensePrompt
+} from "./prompts/generator.prompt.js";
+import {
+  buildHumanizerSystemPrompt,
+  buildHumanizerExpandPrompt,
+  buildHumanizerCondensePrompt,
+  AI_TELL_PHRASES
+} from "./prompts/humanizer.prompt.js";
 
-const MIN_WORD_COUNT = 850;
-const MAX_EXPAND_ATTEMPTS = 2;
+const WORD_COUNT_TOLERANCE = 50;
+const MAX_LENGTH_ATTEMPTS = 3; // base attempt + up to 2 corrective passes
+const DEFAULT_WORD_COUNT_TARGET = 900;
 
 function parseJson(raw) {
   try {
@@ -25,35 +35,51 @@ export function detectAiTellPhrases(text) {
   return AI_TELL_PHRASES.filter((phrase) => lower.includes(phrase));
 }
 
-// First pass with basePrompt, then up to MAX_EXPAND_ATTEMPTS calls to expandPrompt that
-// take the best-so-far draft and grow it, until MIN_WORD_COUNT is cleared. Returns the
-// longest valid draft found even if none clear the bar.
-async function generateWithLengthEnforcement({ basePrompt, expandPrompt, baseUserMessage, buildExpandUserMessage }) {
-  let best = null;
-  let bestWords = 0;
+// First pass with the base prompt, then up to MAX_LENGTH_ATTEMPTS-1 corrective passes —
+// expanding if under the target band, condensing if over it — until the result lands
+// within +/-WORD_COUNT_TOLERANCE of targetWords. Returns the closest-to-target valid
+// draft found even if none land exactly in range.
+async function generateWithLengthEnforcement({
+  targetWords,
+  basePrompt,
+  buildExpandPrompt,
+  buildCondensePrompt,
+  baseUserMessage,
+  buildCorrectionUserMessage
+}) {
+  const min = targetWords - WORD_COUNT_TOLERANCE;
+  const max = targetWords + WORD_COUNT_TOLERANCE;
 
   const firstRaw = await callLLM({ systemPrompt: basePrompt, userMessage: baseUserMessage, jsonMode: true });
-  const first = parseJson(firstRaw);
-  if (first) {
-    best = first;
-    bestWords = countWords(first.content);
-  }
-  console.log(`[length-enforcement] base attempt: ${bestWords} words`);
+  let current = parseJson(firstRaw);
+  let currentWords = current ? countWords(current.content) : 0;
+  console.log(`[length-enforcement] base attempt: ${currentWords} words (target ${targetWords} +/-${WORD_COUNT_TOLERANCE})`);
 
-  for (let attempt = 0; attempt < MAX_EXPAND_ATTEMPTS && bestWords < MIN_WORD_COUNT && best; attempt++) {
+  let best = current;
+  let bestDistance = current ? Math.abs(currentWords - targetWords) : Infinity;
+
+  for (let attempt = 0; attempt < MAX_LENGTH_ATTEMPTS - 1 && current && (currentWords < min || currentWords > max); attempt++) {
+    const needsExpand = currentWords < min;
+    const systemPrompt = needsExpand
+      ? buildExpandPrompt(targetWords, currentWords)
+      : buildCondensePrompt(targetWords, currentWords);
+
     const raw = await callLLM({
-      systemPrompt: expandPrompt,
-      userMessage: buildExpandUserMessage(best),
+      systemPrompt,
+      userMessage: buildCorrectionUserMessage(current),
       jsonMode: true
     });
-    const expanded = parseJson(raw);
-    if (!expanded) continue;
+    const corrected = parseJson(raw);
+    if (!corrected) continue;
 
-    const words = countWords(expanded.content);
-    console.log(`[length-enforcement] expand attempt ${attempt + 1}/${MAX_EXPAND_ATTEMPTS}: ${words} words`);
-    if (words > bestWords) {
-      best = expanded;
-      bestWords = words;
+    current = corrected;
+    currentWords = countWords(current.content);
+    console.log(`[length-enforcement] ${needsExpand ? "expand" : "condense"} attempt ${attempt + 1}: ${currentWords} words`);
+
+    const distance = Math.abs(currentWords - targetWords);
+    if (distance < bestDistance) {
+      best = current;
+      bestDistance = distance;
     }
   }
 
@@ -61,7 +87,7 @@ async function generateWithLengthEnforcement({ basePrompt, expandPrompt, baseUse
 }
 
 // Stage 1: raw structured manager input -> clean content brief
-export async function normalizeInput({ blogTitle, companyName, productName, websiteUrl, keywords, rawDescription }) {
+export async function normalizeInput({ blogTitle, companyName, productName, websiteUrl, keywords, rawDescription, wordCountTarget }) {
   const userMessage = `
 Blog title (if given): ${blogTitle || "(none provided — craft one)"}
 Company name: ${companyName}
@@ -95,16 +121,25 @@ Additional notes from manager: ${rawDescription || "(none)"}
     throw err;
   }
 
+  // The word count is a precise user preference, not something the LLM should
+  // reinterpret — force it exactly rather than trusting the model to carry it through.
+  const requested = Number(wordCountTarget);
+  brief.wordCountTarget = requested > 0 ? requested : brief.wordCountTarget || DEFAULT_WORD_COUNT_TARGET;
+
   return brief;
 }
 
-// Stage 2: clean brief -> draft blog post, expanded if it comes in short
+// Stage 2: clean brief -> draft blog post, corrected toward brief.wordCountTarget +/-50
 export async function generateContent(brief) {
+  const targetWords = Number(brief.wordCountTarget) || DEFAULT_WORD_COUNT_TARGET;
+
   const draft = await generateWithLengthEnforcement({
-    basePrompt: GENERATOR_SYSTEM_PROMPT,
-    expandPrompt: GENERATOR_EXPAND_EXISTING_PROMPT,
+    targetWords,
+    basePrompt: buildGeneratorSystemPrompt(targetWords),
+    buildExpandPrompt: buildGeneratorExpandPrompt,
+    buildCondensePrompt: buildGeneratorCondensePrompt,
     baseUserMessage: JSON.stringify(brief),
-    buildExpandUserMessage: (currentDraft) => JSON.stringify({ brief, currentDraft })
+    buildCorrectionUserMessage: (currentDraft) => JSON.stringify({ brief, currentDraft })
   });
 
   if (!draft) {
@@ -116,13 +151,17 @@ export async function generateContent(brief) {
   return draft;
 }
 
-// Stage 3: raw draft -> humanized draft, expanded if the rewrite comes in short
-export async function humanizeContent(draft) {
+// Stage 3: raw draft -> humanized draft, corrected toward the same target +/-50
+export async function humanizeContent(draft, targetWords) {
+  const target = Number(targetWords) || DEFAULT_WORD_COUNT_TARGET;
+
   const humanized = await generateWithLengthEnforcement({
-    basePrompt: HUMANIZER_SYSTEM_PROMPT,
-    expandPrompt: HUMANIZER_EXPAND_EXISTING_PROMPT,
+    targetWords: target,
+    basePrompt: buildHumanizerSystemPrompt(target),
+    buildExpandPrompt: buildHumanizerExpandPrompt,
+    buildCondensePrompt: buildHumanizerCondensePrompt,
     baseUserMessage: JSON.stringify(draft),
-    buildExpandUserMessage: (currentDraft) => JSON.stringify({ currentDraft })
+    buildCorrectionUserMessage: (currentDraft) => JSON.stringify({ currentDraft })
   });
 
   if (!humanized) {
@@ -136,7 +175,8 @@ export async function humanizeContent(draft) {
 
 // Stage 2 + 3 together
 export async function runFullPipeline(brief) {
+  const targetWords = Number(brief.wordCountTarget) || DEFAULT_WORD_COUNT_TARGET;
   const draft = await generateContent(brief);
-  const humanized = await humanizeContent(draft);
+  const humanized = await humanizeContent(draft, targetWords);
   return { rawDraft: draft, final: humanized };
 }
