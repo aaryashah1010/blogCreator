@@ -24,5 +24,9 @@ export function errorHandler(err, req, res, next) {
     return res.status(409).json({ error: err.message });
   }
 
+  if (err.type === "search_error") {
+    return res.status(502).json({ error: "Backlink search failed", detail: err.message });
+  }
+
   res.status(500).json({ error: "Internal server error" });
 }

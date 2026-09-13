@@ -69,11 +69,11 @@ export async function getDraft(draftId) {
   return res.json();
 }
 
-export async function getBacklinkQueries(draftId) {
-  const res = await authedFetch(`/api/content/${draftId}/backlink-queries`, {
+export async function getBacklinkOpportunities(draftId) {
+  const res = await authedFetch(`/api/content/${draftId}/backlink-opportunities`, {
     method: "POST"
   });
-  if (!res.ok) throw new Error(await parseErrorResponse(res, "Failed to suggest backlink queries"));
-  const { queries } = await res.json();
-  return queries;
+  if (!res.ok) throw new Error(await parseErrorResponse(res, "Failed to find backlink opportunities"));
+  const { results } = await res.json();
+  return results;
 }

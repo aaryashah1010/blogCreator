@@ -1,6 +1,6 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { getBacklinkQueries } from "../api/contentApi";
+import { getBacklinkOpportunities } from "../api/contentApi";
 
 export default function DraftPreview({ draft, onPublish, loading, published }) {
   const [title, setTitle] = useState(draft.title);
@@ -9,20 +9,20 @@ export default function DraftPreview({ draft, onPublish, loading, published }) {
   const [editingContent, setEditingContent] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedSubtitle, setCopiedSubtitle] = useState(null);
-  const [backlinkQueries, setBacklinkQueries] = useState(null);
-  const [copiedQuery, setCopiedQuery] = useState(null);
-  const [loadingQueries, setLoadingQueries] = useState(false);
-  const [queriesError, setQueriesError] = useState(null);
+  const [backlinkResults, setBacklinkResults] = useState(null);
+  const [copiedResultUrl, setCopiedResultUrl] = useState(null);
+  const [loadingBacklinks, setLoadingBacklinks] = useState(false);
+  const [backlinkError, setBacklinkError] = useState(null);
 
   const flags = draft.qualityFlags;
   const hasWarnings = flags && (flags.outsideWordCountTarget || flags.aiTellPhrasesFound?.length > 0);
 
-  async function handleCopy() {
+  async function copyText(text) {
     try {
-      await navigator.clipboard.writeText(content);
+      await navigator.clipboard.writeText(text);
     } catch {
       const textarea = document.createElement("textarea");
-      textarea.value = content;
+      textarea.value = text;
       textarea.style.position = "fixed";
       textarea.style.opacity = "0";
       document.body.appendChild(textarea);
@@ -30,54 +30,36 @@ export default function DraftPreview({ draft, onPublish, loading, published }) {
       document.execCommand("copy");
       document.body.removeChild(textarea);
     }
+  }
+
+  async function handleCopy() {
+    await copyText(content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
 
   async function handleCopySubtitle(text, index) {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      const textarea = document.createElement("textarea");
-      textarea.value = text;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-    }
+    await copyText(text);
     setCopiedSubtitle(index);
     setTimeout(() => setCopiedSubtitle(null), 2000);
   }
 
-  async function handleCopyQuery(text, index) {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      const textarea = document.createElement("textarea");
-      textarea.value = text;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-    }
-    setCopiedQuery(index);
-    setTimeout(() => setCopiedQuery(null), 2000);
+  async function handleCopyResultUrl(url) {
+    await copyText(url);
+    setCopiedResultUrl(url);
+    setTimeout(() => setCopiedResultUrl(null), 2000);
   }
 
-  async function handleFindBacklinkQueries() {
-    setLoadingQueries(true);
-    setQueriesError(null);
+  async function handleFindBacklinks() {
+    setLoadingBacklinks(true);
+    setBacklinkError(null);
     try {
-      const queries = await getBacklinkQueries(draft.draftId);
-      setBacklinkQueries(queries);
+      const results = await getBacklinkOpportunities(draft.draftId);
+      setBacklinkResults(results);
     } catch (e) {
-      setQueriesError(e.message);
+      setBacklinkError(e.message);
     } finally {
-      setLoadingQueries(false);
+      setLoadingBacklinks(false);
     }
   }
 
@@ -153,29 +135,36 @@ export default function DraftPreview({ draft, onPublish, loading, published }) {
         </div>
       )}
 
-      <div className="subtitles-section">
-        <label>Backlink search queries</label>
+      <div className="subtitles-section backlinks-section">
+        <label>Backlink opportunities</label>
         <p className="hint">
-          Search queries to run yourself in Google, tailored to this business — not live results and not a vetted
-          list like the Resources page. Review whatever comes up before reaching out to anyone.
+          Real, live search results tailored to this business — not manually vetted like the Resources page, so
+          review each before reaching out. Getting an actual backlink still means visiting the site yourself.
         </p>
-        {backlinkQueries === null ? (
-          <button type="button" className="link-button" onClick={handleFindBacklinkQueries} disabled={loadingQueries}>
-            {loadingQueries ? "Thinking of queries..." : "Suggest backlink search queries"}
+        {backlinkResults === null ? (
+          <button type="button" className="link-button" onClick={handleFindBacklinks} disabled={loadingBacklinks}>
+            {loadingBacklinks ? "Searching..." : "Find backlink opportunities"}
           </button>
+        ) : backlinkResults.length === 0 ? (
+          <p className="hint">No results came back — try again in a moment, or check the Resources page instead.</p>
         ) : (
-          <ul className="subtitles-list">
-            {backlinkQueries.map((query, i) => (
-              <li key={i}>
-                <span className="subtitle-text">{query}</span>
-                <button type="button" className="link-button" onClick={() => handleCopyQuery(query, i)}>
-                  {copiedQuery === i ? "Copied!" : "Copy"}
+          <ul className="resource-list">
+            {backlinkResults.map((r) => (
+              <li key={r.url}>
+                <div className="resource-info">
+                  <a href={r.url} target="_blank" rel="noreferrer" className="resource-name">
+                    {r.title || r.url}
+                  </a>
+                  {r.snippet && <p>{r.snippet}</p>}
+                </div>
+                <button type="button" className="link-button" onClick={() => handleCopyResultUrl(r.url)}>
+                  {copiedResultUrl === r.url ? "Copied!" : "Copy link"}
                 </button>
               </li>
             ))}
           </ul>
         )}
-        {queriesError && <div className="error-banner">{queriesError}</div>}
+        {backlinkError && <div className="error-banner">{backlinkError}</div>}
       </div>
 
       {published ? (

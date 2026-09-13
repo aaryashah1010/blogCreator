@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { normalizeInput, runFullPipeline, detectAiTellPhrases, generateBacklinkQueries } from "../services/pipeline.service.js";
+import { findBacklinkOpportunities } from "../services/backlinkSearch.service.js";
 import { createBrief } from "../repositories/briefs.repository.js";
 import { createDraft, getDraftForUser, listDraftsForUser, updateDraftStatusForUser } from "../repositories/drafts.repository.js";
 import { validateBriefRequest, validateGenerateRequest } from "../middleware/validateRequest.js";
@@ -102,14 +103,17 @@ router.post("/generate", validateGenerateRequest, async (req, res, next) => {
   }
 });
 
-// Suggest Google search queries (not URLs) for finding backlink opportunities for this draft's business
-router.post("/:draftId/backlink-queries", async (req, res, next) => {
+// Find real, live backlink opportunities for this draft's business: an LLM call builds
+// targeted search queries from the brief, then a handful of them are actually run through
+// Tavily so the results are real current pages, not AI-guessed URLs.
+router.post("/:draftId/backlink-opportunities", async (req, res, next) => {
   try {
     if (!UUID_RE.test(req.params.draftId)) return next(notFound("Draft not found"));
     const draft = await getDraftForUser(req.params.draftId, req.user.id);
     if (!draft) return next(notFound("Draft not found"));
     const queries = await generateBacklinkQueries(draft.brief);
-    res.json({ queries });
+    const results = await findBacklinkOpportunities(queries, draft.brief.websiteUrl);
+    res.json({ results });
   } catch (err) {
     next(err);
   }
