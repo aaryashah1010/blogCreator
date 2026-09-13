@@ -7,23 +7,33 @@ function parseKeywords(text) {
     .filter(Boolean);
 }
 
-export default function ContentRequestForm({ onSubmit, loading }) {
+export default function ContentRequestForm({ contentType, onSubmit, loading }) {
+  const isWebpage = contentType === "webpage";
+
   const [blogTitle, setBlogTitle] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [productName, setProductName] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [keywordsText, setKeywordsText] = useState("");
+  const [primaryKeyword, setPrimaryKeyword] = useState("");
+  const [secondaryKeyword, setSecondaryKeyword] = useState("");
   const [rawDescription, setRawDescription] = useState("");
-  const [wordCountTarget, setWordCountTarget] = useState(900);
+  const [wordCountTarget, setWordCountTarget] = useState(isWebpage ? 200 : 900);
   const [validationError, setValidationError] = useState(null);
 
   function handleSubmit(e) {
     e.preventDefault();
 
-    const keywords = parseKeywords(keywordsText);
+    const keywords = isWebpage
+      ? [primaryKeyword.trim(), secondaryKeyword.trim()].filter(Boolean)
+      : parseKeywords(keywordsText);
 
     if (!companyName.trim() || !productName.trim() || keywords.length === 0) {
-      setValidationError("Please fill in company name, product/service name, and at least one keyword.");
+      setValidationError(
+        isWebpage
+          ? "Please fill in company name, product/service name, and the primary keyword."
+          : "Please fill in company name, product/service name, and at least one keyword."
+      );
       return;
     }
 
@@ -35,23 +45,28 @@ export default function ContentRequestForm({ onSubmit, loading }) {
       websiteUrl: websiteUrl.trim(),
       keywords,
       rawDescription: rawDescription.trim(),
-      wordCountTarget: Math.max(200, Number(wordCountTarget) || 900)
+      wordCountTarget: Math.max(200, Number(wordCountTarget) || (isWebpage ? 200 : 900)),
+      contentType: isWebpage ? "webpage" : "blog"
     });
   }
 
   return (
     <form className="card" onSubmit={handleSubmit}>
-      <h2>New blog post</h2>
+      <h2>{isWebpage ? "New webpage content" : "New blog post"}</h2>
 
       {validationError && <div className="error-banner">{validationError}</div>}
 
       <label>
-        Blog title (optional)
+        {isWebpage ? "Page headline (optional)" : "Blog title (optional)"}
         <input
           type="text"
           value={blogTitle}
           onChange={(e) => setBlogTitle(e.target.value)}
-          placeholder="e.g. Hydraulic High Pressure Hose Selection Guide for Industrial Applications in India"
+          placeholder={
+            isWebpage
+              ? "e.g. Hydraulic Hoses Built for Indian Industrial Operations"
+              : "e.g. Hydraulic High Pressure Hose Selection Guide for Industrial Applications in India"
+          }
         />
       </label>
 
@@ -85,15 +100,38 @@ export default function ContentRequestForm({ onSubmit, loading }) {
         />
       </label>
 
-      <label>
-        Target keywords (one per line, or comma-separated)
-        <textarea
-          value={keywordsText}
-          onChange={(e) => setKeywordsText(e.target.value)}
-          placeholder={"hydraulic high pressure hose India\nhydraulic hose supplier India\nhydraulic hose supplier Ahmedabad"}
-          rows={5}
-        />
-      </label>
+      {isWebpage ? (
+        <>
+          <label>
+            Primary keyword
+            <input
+              type="text"
+              value={primaryKeyword}
+              onChange={(e) => setPrimaryKeyword(e.target.value)}
+              placeholder="e.g. hydraulic hose supplier Ahmedabad"
+            />
+          </label>
+          <label>
+            Secondary keyword (optional)
+            <input
+              type="text"
+              value={secondaryKeyword}
+              onChange={(e) => setSecondaryKeyword(e.target.value)}
+              placeholder="e.g. industrial hydraulic hose India"
+            />
+          </label>
+        </>
+      ) : (
+        <label>
+          Target keywords (one per line, or comma-separated)
+          <textarea
+            value={keywordsText}
+            onChange={(e) => setKeywordsText(e.target.value)}
+            placeholder={"hydraulic high pressure hose India\nhydraulic hose supplier India\nhydraulic hose supplier Ahmedabad"}
+            rows={5}
+          />
+        </label>
+      )}
 
       <label>
         Additional notes (optional)
@@ -115,7 +153,7 @@ export default function ContentRequestForm({ onSubmit, loading }) {
           onChange={(e) => setWordCountTarget(e.target.value)}
         />
       </label>
-      <p className="hint">The post will be kept within ±50 words of this.</p>
+      <p className="hint">The {isWebpage ? "page" : "post"} will be kept within ±50 words of this.</p>
 
       <button type="submit" disabled={loading}>
         {loading ? "Understanding your brief..." : "Create brief"}

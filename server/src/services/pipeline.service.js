@@ -11,6 +11,15 @@ import {
   buildHumanizerCondensePrompt,
   AI_TELL_PHRASES
 } from "./prompts/humanizer.prompt.js";
+import { BACKLINK_QUERIES_SYSTEM_PROMPT } from "./prompts/backlinkQueries.prompt.js";
+import {
+  buildWebpageGeneratorPrompt,
+  buildWebpageGeneratorExpandPrompt,
+  buildWebpageGeneratorCondensePrompt,
+  buildWebpageHumanizerPrompt,
+  buildWebpageHumanizerExpandPrompt,
+  buildWebpageHumanizerCondensePrompt
+} from "./prompts/webpage.prompt.js";
 
 const WORD_COUNT_TOLERANCE = 50;
 const MAX_LENGTH_ATTEMPTS = 3; // base attempt + up to 2 corrective passes
@@ -26,6 +35,10 @@ function parseJson(raw) {
 
 function countWords(text) {
   return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function isWebpage(brief) {
+  return brief.contentType === "webpage";
 }
 
 // Safety net for humanizer misses — surfaced to the client so a manager can spot-check
@@ -87,7 +100,7 @@ async function generateWithLengthEnforcement({
 }
 
 // Stage 1: raw structured manager input -> clean content brief
-export async function normalizeInput({ blogTitle, companyName, productName, websiteUrl, keywords, rawDescription, wordCountTarget }) {
+export async function normalizeInput({ blogTitle, companyName, productName, websiteUrl, keywords, rawDescription, wordCountTarget, contentType }) {
   const userMessage = `
 Blog title (if given): ${blogTitle || "(none provided — craft one)"}
 Company name: ${companyName}
@@ -125,19 +138,21 @@ Additional notes from manager: ${rawDescription || "(none)"}
   // reinterpret — force it exactly rather than trusting the model to carry it through.
   const requested = Number(wordCountTarget);
   brief.wordCountTarget = requested > 0 ? requested : brief.wordCountTarget || DEFAULT_WORD_COUNT_TARGET;
+  brief.contentType = contentType === "webpage" ? "webpage" : "blog";
 
   return brief;
 }
 
-// Stage 2: clean brief -> draft blog post, corrected toward brief.wordCountTarget +/-50
+// Stage 2: clean brief -> draft blog post or webpage copy, corrected toward brief.wordCountTarget +/-50
 export async function generateContent(brief) {
   const targetWords = Number(brief.wordCountTarget) || DEFAULT_WORD_COUNT_TARGET;
+  const webpage = isWebpage(brief);
 
   const draft = await generateWithLengthEnforcement({
     targetWords,
-    basePrompt: buildGeneratorSystemPrompt(targetWords),
-    buildExpandPrompt: buildGeneratorExpandPrompt,
-    buildCondensePrompt: buildGeneratorCondensePrompt,
+    basePrompt: webpage ? buildWebpageGeneratorPrompt(targetWords) : buildGeneratorSystemPrompt(targetWords),
+    buildExpandPrompt: webpage ? buildWebpageGeneratorExpandPrompt : buildGeneratorExpandPrompt,
+    buildCondensePrompt: webpage ? buildWebpageGeneratorCondensePrompt : buildGeneratorCondensePrompt,
     baseUserMessage: JSON.stringify(brief),
     buildCorrectionUserMessage: (currentDraft) => JSON.stringify({ brief, currentDraft })
   });
@@ -152,15 +167,16 @@ export async function generateContent(brief) {
 }
 
 // Stage 3: raw draft -> humanized draft, corrected toward the same target +/-50.
-// Also generates 2-3 alternate subtitle suggestions, which is why it needs the keyword list.
-export async function humanizeContent(draft, targetWords, keywords) {
+// Blog posts also get 2-3 alternate subtitle suggestions; webpage copy doesn't use them.
+export async function humanizeContent(draft, targetWords, keywords, contentType) {
   const target = Number(targetWords) || DEFAULT_WORD_COUNT_TARGET;
+  const webpage = contentType === "webpage";
 
   const humanized = await generateWithLengthEnforcement({
     targetWords: target,
-    basePrompt: buildHumanizerSystemPrompt(target),
-    buildExpandPrompt: buildHumanizerExpandPrompt,
-    buildCondensePrompt: buildHumanizerCondensePrompt,
+    basePrompt: webpage ? buildWebpageHumanizerPrompt(target) : buildHumanizerSystemPrompt(target),
+    buildExpandPrompt: webpage ? buildWebpageHumanizerExpandPrompt : buildHumanizerExpandPrompt,
+    buildCondensePrompt: webpage ? buildWebpageHumanizerCondensePrompt : buildHumanizerCondensePrompt,
     baseUserMessage: JSON.stringify({ ...draft, keywords: keywords || [] }),
     buildCorrectionUserMessage: (currentDraft) => JSON.stringify({ currentDraft })
   });
@@ -171,7 +187,7 @@ export async function humanizeContent(draft, targetWords, keywords) {
     err.status = 502;
     throw err;
   }
-  if (!Array.isArray(humanized.subtitles)) humanized.subtitles = [];
+  if (webpage || !Array.isArray(humanized.subtitles)) humanized.subtitles = [];
   return humanized;
 }
 
@@ -180,6 +196,33 @@ export async function runFullPipeline(brief) {
   const targetWords = Number(brief.wordCountTarget) || DEFAULT_WORD_COUNT_TARGET;
   const keywords = [brief.primaryKeyword, ...(brief.secondaryKeywords || [])].filter(Boolean);
   const draft = await generateContent(brief);
-  const humanized = await humanizeContent(draft, targetWords, keywords);
+  const humanized = await humanizeContent(draft, targetWords, keywords, brief.contentType);
   return { rawDraft: draft, final: humanized };
+}
+
+// Suggests Google search queries (not URLs) for finding backlink opportunities for this brief's
+// business — never claims a specific site exists, so no hallucination risk the way a URL list would have.
+export async function generateBacklinkQueries(brief) {
+  const userMessage = JSON.stringify({
+    companyName: brief.companyName,
+    productName: brief.productName,
+    primaryKeyword: brief.primaryKeyword,
+    secondaryKeywords: brief.secondaryKeywords || [],
+    targetLocations: brief.targetLocations || []
+  });
+
+  const raw = await callLLM({
+    systemPrompt: BACKLINK_QUERIES_SYSTEM_PROMPT,
+    userMessage,
+    jsonMode: true
+  });
+
+  const parsed = parseJson(raw);
+  if (!parsed || !Array.isArray(parsed.queries)) {
+    const err = new Error("Could not generate backlink search queries.");
+    err.type = "openai_error";
+    err.status = 502;
+    throw err;
+  }
+  return parsed.queries.filter((q) => typeof q === "string" && q.trim().length > 0);
 }

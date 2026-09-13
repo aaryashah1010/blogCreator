@@ -1,5 +1,6 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
+import { getBacklinkQueries } from "../api/contentApi";
 
 export default function DraftPreview({ draft, onPublish, loading, published }) {
   const [title, setTitle] = useState(draft.title);
@@ -8,6 +9,10 @@ export default function DraftPreview({ draft, onPublish, loading, published }) {
   const [editingContent, setEditingContent] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedSubtitle, setCopiedSubtitle] = useState(null);
+  const [backlinkQueries, setBacklinkQueries] = useState(null);
+  const [copiedQuery, setCopiedQuery] = useState(null);
+  const [loadingQueries, setLoadingQueries] = useState(false);
+  const [queriesError, setQueriesError] = useState(null);
 
   const flags = draft.qualityFlags;
   const hasWarnings = flags && (flags.outsideWordCountTarget || flags.aiTellPhrasesFound?.length > 0);
@@ -44,6 +49,36 @@ export default function DraftPreview({ draft, onPublish, loading, published }) {
     }
     setCopiedSubtitle(index);
     setTimeout(() => setCopiedSubtitle(null), 2000);
+  }
+
+  async function handleCopyQuery(text, index) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+    setCopiedQuery(index);
+    setTimeout(() => setCopiedQuery(null), 2000);
+  }
+
+  async function handleFindBacklinkQueries() {
+    setLoadingQueries(true);
+    setQueriesError(null);
+    try {
+      const queries = await getBacklinkQueries(draft.draftId);
+      setBacklinkQueries(queries);
+    } catch (e) {
+      setQueriesError(e.message);
+    } finally {
+      setLoadingQueries(false);
+    }
   }
 
   return (
@@ -117,6 +152,31 @@ export default function DraftPreview({ draft, onPublish, loading, published }) {
           </ul>
         </div>
       )}
+
+      <div className="subtitles-section">
+        <label>Backlink search queries</label>
+        <p className="hint">
+          Search queries to run yourself in Google, tailored to this business — not live results and not a vetted
+          list like the Resources page. Review whatever comes up before reaching out to anyone.
+        </p>
+        {backlinkQueries === null ? (
+          <button type="button" className="link-button" onClick={handleFindBacklinkQueries} disabled={loadingQueries}>
+            {loadingQueries ? "Thinking of queries..." : "Suggest backlink search queries"}
+          </button>
+        ) : (
+          <ul className="subtitles-list">
+            {backlinkQueries.map((query, i) => (
+              <li key={i}>
+                <span className="subtitle-text">{query}</span>
+                <button type="button" className="link-button" onClick={() => handleCopyQuery(query, i)}>
+                  {copiedQuery === i ? "Copied!" : "Copy"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {queriesError && <div className="error-banner">{queriesError}</div>}
+      </div>
 
       {published ? (
         <div className="published-banner">Published</div>

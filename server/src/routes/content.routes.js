@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { normalizeInput, runFullPipeline, detectAiTellPhrases } from "../services/pipeline.service.js";
+import { normalizeInput, runFullPipeline, detectAiTellPhrases, generateBacklinkQueries } from "../services/pipeline.service.js";
 import { createBrief } from "../repositories/briefs.repository.js";
 import { createDraft, getDraftForUser, listDraftsForUser, updateDraftStatusForUser } from "../repositories/drafts.repository.js";
 import { validateBriefRequest, validateGenerateRequest } from "../middleware/validateRequest.js";
@@ -36,6 +36,7 @@ function toSummary(draft) {
     draftId: draft.draftId,
     title: draft.title,
     status: draft.status,
+    contentType: draft.brief?.contentType || "blog",
     primaryKeyword: draft.brief?.primaryKeyword || null,
     wordCount: countWords(draft.humanizedDraft),
     createdAt: draft.createdAt,
@@ -56,8 +57,8 @@ router.get("/", async (req, res, next) => {
 // Stage 1 only — lets the frontend show the brief for review before generating
 router.post("/brief", validateBriefRequest, async (req, res, next) => {
   try {
-    const { blogTitle, companyName, productName, websiteUrl, keywords, rawDescription, wordCountTarget } = req.body;
-    const brief = await normalizeInput({ blogTitle, companyName, productName, websiteUrl, keywords, rawDescription, wordCountTarget });
+    const { blogTitle, companyName, productName, websiteUrl, keywords, rawDescription, wordCountTarget, contentType } = req.body;
+    const brief = await normalizeInput({ blogTitle, companyName, productName, websiteUrl, keywords, rawDescription, wordCountTarget, contentType });
     const briefId = await createBrief({ userId: req.user.id, brief });
     res.json({ briefId, brief });
   } catch (err) {
@@ -88,6 +89,7 @@ router.post("/generate", validateGenerateRequest, async (req, res, next) => {
       metaDescription: draft.metaDescription,
       content: draft.humanizedDraft,
       subtitles: draft.subtitles,
+      contentType: draft.brief?.contentType || "blog",
       wordCount: countWords(draft.humanizedDraft),
       qualityFlags: buildQualityFlags(draft),
       stages: {
@@ -95,6 +97,19 @@ router.post("/generate", validateGenerateRequest, async (req, res, next) => {
         humanizedDraft: draft.humanizedDraft
       }
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Suggest Google search queries (not URLs) for finding backlink opportunities for this draft's business
+router.post("/:draftId/backlink-queries", async (req, res, next) => {
+  try {
+    if (!UUID_RE.test(req.params.draftId)) return next(notFound("Draft not found"));
+    const draft = await getDraftForUser(req.params.draftId, req.user.id);
+    if (!draft) return next(notFound("Draft not found"));
+    const queries = await generateBacklinkQueries(draft.brief);
+    res.json({ queries });
   } catch (err) {
     next(err);
   }
@@ -124,6 +139,7 @@ router.get("/:draftId", async (req, res, next) => {
       metaDescription: draft.metaDescription,
       content: draft.humanizedDraft,
       subtitles: draft.subtitles,
+      contentType: draft.brief?.contentType || "blog",
       wordCount: countWords(draft.humanizedDraft),
       status: draft.status,
       qualityFlags: buildQualityFlags(draft),

@@ -42,17 +42,23 @@ export default function BriefReview({ brief, onConfirm, loading }) {
       mustInclude: fromList(mustInclude),
       callToAction,
       wordCountTarget: Math.max(200, Number(wordCountTarget) || 900),
+      contentType: brief.contentType || "blog",
       assumptions: brief.assumptions || []
     });
   }
 
+  const isWebpage = brief.contentType === "webpage";
+
   return (
     <form className="card" onSubmit={handleSubmit}>
+      <div className={`type-badge type-badge-${isWebpage ? "webpage" : "blog"}`}>
+        {isWebpage ? "Webpage content" : "Blog post"}
+      </div>
       <h2>Review the brief</h2>
       <p className="hint">Fix anything that's off before we write the full post — this is the cheapest place to correct a misunderstanding.</p>
 
       <label>
-        Blog title
+        {isWebpage ? "Page headline" : "Blog title"}
         <input type="text" value={blogTitle} onChange={(e) => setBlogTitle(e.target.value)} />
       </label>
 

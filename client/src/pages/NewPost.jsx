@@ -6,8 +6,9 @@ import DraftPreview from "../components/DraftPreview";
 import { getBrief, generateContent, publishDraft, getDraft } from "../api/contentApi";
 import { logout } from "../api/authApi";
 
-export default function NewPost({ onLoggedOut, onGoToDashboard, openDraftId }) {
+export default function NewPost({ onLoggedOut, onGoToDashboard, openDraftId, contentType }) {
   const [step, setStep] = useState(openDraftId ? null : "form"); // form | brief | draft
+  const [resolvedContentType, setResolvedContentType] = useState(contentType || "blog");
   const [briefData, setBriefData] = useState(null);
   const [draftData, setDraftData] = useState(null);
   const [published, setPublished] = useState(false);
@@ -20,6 +21,7 @@ export default function NewPost({ onLoggedOut, onGoToDashboard, openDraftId }) {
       .then((result) => {
         setDraftData(result);
         setPublished(result.status === "published");
+        setResolvedContentType(result.contentType || "blog");
         setStep("draft");
       })
       .catch((e) => setError(e.message))
@@ -77,12 +79,20 @@ export default function NewPost({ onLoggedOut, onGoToDashboard, openDraftId }) {
   }
 
   return (
-    <AppShell step={step} published={published} onLogout={handleLogout} onGoToDashboard={onGoToDashboard}>
+    <AppShell
+      step={step}
+      published={published}
+      contentType={resolvedContentType}
+      onLogout={handleLogout}
+      onGoToDashboard={onGoToDashboard}
+    >
       {error && <div className="error-banner">{error}</div>}
 
       {loading && !step && <p className="hint">Loading...</p>}
 
-      {step === "form" && <ContentRequestForm onSubmit={handleFormSubmit} loading={loading} />}
+      {step === "form" && (
+        <ContentRequestForm contentType={resolvedContentType} onSubmit={handleFormSubmit} loading={loading} />
+      )}
 
       {step === "brief" && (
         <BriefReview brief={briefData.brief} onConfirm={handleBriefConfirm} loading={loading} />

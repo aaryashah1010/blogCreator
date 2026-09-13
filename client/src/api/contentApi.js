@@ -68,3 +68,12 @@ export async function getDraft(draftId) {
   if (!res.ok) throw new Error(await parseErrorResponse(res, "Failed to load post"));
   return res.json();
 }
+
+export async function getBacklinkQueries(draftId) {
+  const res = await authedFetch(`/api/content/${draftId}/backlink-queries`, {
+    method: "POST"
+  });
+  if (!res.ok) throw new Error(await parseErrorResponse(res, "Failed to suggest backlink queries"));
+  const { queries } = await res.json();
+  return queries;
+}

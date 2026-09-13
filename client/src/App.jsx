@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import DashboardPage from "./pages/DashboardPage";
+import ResourcesPage from "./pages/ResourcesPage";
 import NewPost from "./pages/NewPost";
 import AppShell from "./components/AppShell";
 import { me, getToken, logout } from "./api/authApi";
@@ -9,8 +10,9 @@ import { me, getToken, logout } from "./api/authApi";
 function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [user, setUser] = useState(null);
-  const [view, setView] = useState("login"); // login | signup | dashboard | new-post
+  const [view, setView] = useState("login"); // login | signup | dashboard | new-post | resources
   const [openDraftId, setOpenDraftId] = useState(null);
+  const [newPostContentType, setNewPostContentType] = useState("blog");
 
   useEffect(() => {
     if (!getToken()) {
@@ -82,22 +84,28 @@ function App() {
         }}
         onGoToDashboard={goToDashboard}
         openDraftId={openDraftId}
+        contentType={newPostContentType}
       />
     );
   }
 
   return (
-    <AppShell onLogout={handleLogout} onGoToDashboard={goToDashboard}>
-      <DashboardPage
-        onNewPost={() => {
-          setOpenDraftId(null);
-          setView("new-post");
-        }}
-        onOpenDraft={(id) => {
-          setOpenDraftId(id);
-          setView("new-post");
-        }}
-      />
+    <AppShell onLogout={handleLogout} onGoToDashboard={goToDashboard} onGoToResources={() => setView("resources")}>
+      {view === "resources" ? (
+        <ResourcesPage />
+      ) : (
+        <DashboardPage
+          onNewPost={(contentType) => {
+            setOpenDraftId(null);
+            setNewPostContentType(contentType || "blog");
+            setView("new-post");
+          }}
+          onOpenDraft={(id) => {
+            setOpenDraftId(id);
+            setView("new-post");
+          }}
+        />
+      )}
     </AppShell>
   );
 }

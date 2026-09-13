@@ -30,9 +30,14 @@ export default function DashboardPage({ onNewPost, onOpenDraft }) {
           <h1>Your posts</h1>
           <p className="hint">Everything you've generated, saved automatically.</p>
         </div>
-        <button type="button" onClick={onNewPost}>
-          + New post
-        </button>
+        <div className="dashboard-new-buttons">
+          <button type="button" onClick={() => onNewPost("blog")}>
+            + New blog post
+          </button>
+          <button type="button" onClick={() => onNewPost("webpage")}>
+            + New webpage content
+          </button>
+        </div>
       </div>
 
       {error && <div className="error-banner">{error}</div>}
@@ -40,9 +45,14 @@ export default function DashboardPage({ onNewPost, onOpenDraft }) {
       {drafts && drafts.length === 0 && (
         <div className="dashboard-empty">
           <p>No posts yet.</p>
-          <button type="button" onClick={onNewPost}>
-            Create your first post
-          </button>
+          <div className="dashboard-new-buttons">
+            <button type="button" onClick={() => onNewPost("blog")}>
+              Create your first blog post
+            </button>
+            <button type="button" onClick={() => onNewPost("webpage")}>
+              Create your first webpage
+            </button>
+          </div>
         </div>
       )}
 
@@ -50,7 +60,12 @@ export default function DashboardPage({ onNewPost, onOpenDraft }) {
         <div className="dashboard-grid">
           {drafts.map((draft) => (
             <button key={draft.draftId} type="button" className="dashboard-card" onClick={() => onOpenDraft(draft.draftId)}>
-              <span className={`status-badge status-${draft.status}`}>{draft.status}</span>
+              <div className="dashboard-card-badges">
+                <span className={`status-badge status-${draft.status}`}>{draft.status}</span>
+                <span className={`type-badge type-badge-${draft.contentType || "blog"}`}>
+                  {draft.contentType === "webpage" ? "Webpage" : "Blog"}
+                </span>
+              </div>
               <h3>{draft.title}</h3>
               {draft.primaryKeyword && <p className="dashboard-card-keyword">{draft.primaryKeyword}</p>}
               <p className="dashboard-card-meta">

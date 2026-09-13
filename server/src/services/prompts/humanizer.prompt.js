@@ -28,9 +28,9 @@ export const AI_TELL_PHRASES = [
   "unparalleled"
 ];
 
-const TOLERANCE = 50;
+export const TOLERANCE = 50;
 
-function baseRewriteRules() {
+export function baseRewriteRules() {
   return `
 - Sentence rhythm: mix short, punchy sentences with longer ones. Avoid three sentences in a row with the same structure or length — that's the single most obvious AI tell.
 - Vary paragraph length. Not every paragraph needs 3-4 sentences; let some be one or two.
