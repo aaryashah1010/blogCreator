@@ -311,6 +311,26 @@ button:disabled {
   margin-top: 6px;
 }
 
+.site-search-form {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.site-search-form input {
+  flex: 1;
+}
+
+.site-search-form button {
+  flex-shrink: 0;
+}
+
+.resources-static-heading {
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+  margin-top: 8px;
+}
+
 .resource-group h3 {
   font-size: 16px;
   margin: 0 0 4px;

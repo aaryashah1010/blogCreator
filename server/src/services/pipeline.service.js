@@ -12,6 +12,7 @@ import {
   AI_TELL_PHRASES
 } from "./prompts/humanizer.prompt.js";
 import { BACKLINK_QUERIES_SYSTEM_PROMPT } from "./prompts/backlinkQueries.prompt.js";
+import { SITE_ANALYSIS_SYSTEM_PROMPT } from "./prompts/siteAnalysis.prompt.js";
 import {
   buildWebpageGeneratorPrompt,
   buildWebpageGeneratorExpandPrompt,
@@ -225,4 +226,33 @@ export async function generateBacklinkQueries(brief) {
     throw err;
   }
   return parsed.queries.filter((q) => typeof q === "string" && q.trim().length > 0);
+}
+
+// Infers a brief-shaped object (companyName, productName, primaryKeyword, secondaryKeywords,
+// targetLocations) from a real page's scraped title/description/text — grounded only in what's
+// actually on the page, so this can feed straight into generateBacklinkQueries for any URL,
+// not just posts generated inside this app.
+export async function inferBriefFromSite({ url, title, description, textSample }) {
+  const userMessage = JSON.stringify({ url, title, description, textSample });
+
+  const raw = await callLLM({
+    systemPrompt: SITE_ANALYSIS_SYSTEM_PROMPT,
+    userMessage,
+    jsonMode: true
+  });
+
+  const parsed = parseJson(raw);
+  if (!parsed || !parsed.productName) {
+    const err = new Error("Could not understand what that page is about.");
+    err.type = "openai_error";
+    err.status = 502;
+    throw err;
+  }
+  return {
+    companyName: parsed.companyName || "This business",
+    productName: parsed.productName,
+    primaryKeyword: parsed.primaryKeyword || parsed.productName,
+    secondaryKeywords: Array.isArray(parsed.secondaryKeywords) ? parsed.secondaryKeywords : [],
+    targetLocations: Array.isArray(parsed.targetLocations) ? parsed.targetLocations : []
+  };
 }

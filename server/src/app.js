@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import authRoutes from "./routes/auth.routes.js";
 import contentRoutes from "./routes/content.routes.js";
+import backlinksRoutes from "./routes/backlinks.routes.js";
 import { requireAuth } from "./middleware/requireAuth.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 
@@ -20,6 +21,7 @@ app.use(express.static(path.join(__dirname, "..", "public")));
 app.get("/health", (req, res) => res.json({ ok: true }));
 app.use("/api/auth", authRoutes);
 app.use("/api/content", requireAuth, contentRoutes);
+app.use("/api/backlinks", requireAuth, backlinksRoutes);
 
 app.use(errorHandler);
 
