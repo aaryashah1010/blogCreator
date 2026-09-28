@@ -52,14 +52,32 @@ export async function findBacklinkOpportunities(queries, websiteUrl) {
   if (ownHost) excludeDomains.push(ownHost);
 
   const queriesToRun = (queries || []).slice(0, MAX_QUERIES_TO_SEARCH);
-  const resultSets = await Promise.all(
-    queriesToRun.map((q) => tavilySearch(q, excludeDomains).catch(() => []))
+  const outcomes = await Promise.all(
+    queriesToRun.map((q) =>
+      tavilySearch(q, excludeDomains)
+        .then((results) => ({ ok: true, results }))
+        .catch((err) => ({ ok: false, error: err }))
+    )
   );
+
+  const failures = outcomes.filter((o) => !o.ok);
+  if (failures.length > 0) {
+    console.error(`[backlink-search] ${failures.length}/${outcomes.length} queries failed:`);
+    failures.forEach((f) => console.error(`  - ${f.error.message}`));
+  }
+
+  // Every single query failing means the search itself is broken (bad key, rate limit,
+  // network issue) — that's a real error, not "genuinely zero results", so surface it
+  // instead of silently returning an empty list that looks identical to a clean miss.
+  if (failures.length === outcomes.length && outcomes.length > 0) {
+    throw searchError(failures[0].error.message);
+  }
 
   const seen = new Set();
   const merged = [];
-  for (const results of resultSets) {
-    for (const r of results) {
+  for (const outcome of outcomes) {
+    if (!outcome.ok) continue;
+    for (const r of outcome.results) {
       if (!r.url || seen.has(r.url)) continue;
       seen.add(r.url);
       merged.push(r);
